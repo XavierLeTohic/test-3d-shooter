@@ -25,12 +25,19 @@ var crouching = false
 var free_looking = false
 var sliding = false
 
+# Slide vars
+
+var sliding_timer = 0.0
+var sliding_timer_max = 1.0
+var sliding_vector = Vector2.ZERO
+var sliding_speed = 10.0
+
 # Movement vars
 
 var crounching_depth = -0.5
 
 const jump_velocity = 4.5
-var lerp_speed = 10
+var lerp_speed = 10.0
 
 var free_look_tilt_amount = 5
 
@@ -62,21 +69,33 @@ func _input(event):
 		head.rotation.x = clamp(head.rotation.x, deg_to_rad(-80), deg_to_rad(89))
 
 func _physics_process(delta):
+	# Gettign movements inputs
+	var input_dir = Input.get_vector("left", "right", "forward", "backward")
 	
 	# handling movements state
 	
 	# Crouching
 	if Input.is_action_pressed("crouch"):
 		
-		walking = false
-		sprinting = false
-		crouching = true
-		
 		current_speed = crouching_speed
 		head.position.y = lerp(head.position.y, crounching_depth, delta * lerp_speed)
 		
 		standing_collision_shape.disabled = true
 		crouching_collision_shape.disabled = false
+		
+		# Slide begin logic
+	
+		
+		if sprinting && input_dir != Vector2.ZERO:
+			sliding = true
+			sliding_timer = sliding_timer_max
+			sliding_vector = input_dir
+			free_looking = true 
+			print("slide begins")
+		
+		walking = false
+		sprinting = false
+		crouching = true 
 		
 	elif !ray_cast_3d.is_colliding(): 
 		
@@ -101,13 +120,27 @@ func _physics_process(delta):
 			crouching = false
 			
 	# Free look pressed
-	if Input.is_action_pressed("free_look"):
+	if Input.is_action_pressed("free_look") || sliding:
 		free_looking = true
-		camera_3d.rotation.z = -deg_to_rad(neck.rotation.y * free_look_tilt_amount)
+		
+		if sliding:
+			camera_3d.rotation.z = lerp(camera_3d.rotation.z, -deg_to_rad(7.0), delta * lerp_speed)
+		else:
+			camera_3d.rotation.z = -deg_to_rad(neck.rotation.y * free_look_tilt_amount)
 	else:
 		free_looking = false
 		neck.rotation.y = lerp(neck.rotation.y, 0.0, delta * lerp_speed);
 		camera_3d.rotation.z = lerp(camera_3d.rotation.z, 0.0, delta * lerp_speed)
+	
+	# Handler sliding
+	if sliding:
+		sliding_timer -= delta
+		
+		if sliding_timer <= 0:
+			sliding = 0
+			free_looking = false
+			print("slide ends")
+		 
 	
 	# Add the gravity.
 	if not is_on_floor():
@@ -116,16 +149,21 @@ func _physics_process(delta):
 	# Handle jump.
 	if Input.is_action_just_pressed("ui_accept") and is_on_floor():
 		velocity.y = jump_velocity
+		sliding = false
 
-	# Get the input direction and handle the movement/deceleration.
-	# As good practice, you should replace UI actions with custom gameplay actions.
-	var input_dir = Input.get_vector("left", "right", "forward", "backward")
+	# Handle the movement/deceleration.
 	direction = lerp(direction, (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized(), delta * lerp_speed)
 	
+	if sliding:
+		direction = (transform.basis * Vector3(sliding_vector.x, 0.0, sliding_vector.y)).normalized()
 	
 	if direction:
 		velocity.x = direction.x * current_speed
 		velocity.z = direction.z * current_speed
+		
+		if sliding:
+			velocity.x = direction.x * (sliding_timer + 0.1) * sliding_speed
+			velocity.z = direction.z * (sliding_timer + 0.1) * sliding_speed 
 	else:
 		velocity.x = move_toward(velocity.x, 0, current_speed)
 		velocity.z = move_toward(velocity.z, 0, current_speed)
