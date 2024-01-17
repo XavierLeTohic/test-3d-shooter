@@ -16,8 +16,8 @@ extends CharacterBody3D
 var current_speed = 5.0
 
 const walking_speed = 5.0
-const sprinting_speed = 8
-const crouching_speed = 3
+const sprinting_speed = 8.0
+const crouching_speed = 3.0
 
 # States
 
@@ -93,7 +93,7 @@ func _physics_process(delta):
 	# Crouching
 	if Input.is_action_pressed("crouch"):
 		
-		current_speed = crouching_speed
+		current_speed = lerp(current_speed, crouching_speed, delta * lerp_speed)
 		head.position.y = lerp(head.position.y, crounching_depth, delta * lerp_speed)
 		
 		standing_collision_shape.disabled = true
@@ -122,14 +122,14 @@ func _physics_process(delta):
 		
 		if Input.is_action_pressed("sprint"):
 			# Sprinting
-			current_speed = sprinting_speed
+			current_speed = lerp(current_speed, sprinting_speed, delta * lerp_speed)
 			
 			walking = false
 			sprinting = true
 			crouching = false
 		else:
 			# Walking
-			current_speed = walking_speed
+			current_speed = lerp(current_speed, walking_speed, delta * lerp_speed)
 			
 			walking = true
 			sprinting = false
@@ -192,14 +192,13 @@ func _physics_process(delta):
 	
 	if sliding:
 		direction = (transform.basis * Vector3(sliding_vector.x, 0.0, sliding_vector.y)).normalized()
+		current_speed = (sliding_timer + 0.1) * sliding_speed  
 	
 	if direction:
 		velocity.x = direction.x * current_speed
 		velocity.z = direction.z * current_speed
 		
-		if sliding:
-			velocity.x = direction.x * (sliding_timer + 0.1) * sliding_speed
-			velocity.z = direction.z * (sliding_timer + 0.1) * sliding_speed 
+
 	else:
 		velocity.x = move_toward(velocity.x, 0, current_speed)
 		velocity.z = move_toward(velocity.z, 0, current_speed)
